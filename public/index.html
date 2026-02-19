@@ -1,0 +1,906 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Pokélor</title>
+<script src="/socket.io/socket.io.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323:wght@400&display=swap');
+:root{
+  --bg:#0a0a1a;--surf:#12122a;--card:#1a1a3a;--bdr:#3a3a6a;
+  --acc:#ffcc00;--grn:#44ff88;--red:#ff4466;--blu:#44aaff;--pur:#cc44ff;
+  --txt:#e8e8ff;--mut:#888aaa;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--txt);font-family:'VT323',monospace;font-size:20px;min-height:100vh;overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;
+  background-image:radial-gradient(1px 1px at 15% 25%,rgba(255,255,255,.4),transparent),
+  radial-gradient(1px 1px at 55% 65%,rgba(255,255,255,.3),transparent),
+  radial-gradient(1px 1px at 75% 15%,rgba(255,255,255,.35),transparent),
+  radial-gradient(1px 1px at 35% 75%,rgba(255,255,255,.25),transparent);
+  pointer-events:none;z-index:0}
+#app{position:relative;z-index:1}
+
+.screen{display:none;min-height:100vh;padding:14px;max-width:860px;margin:0 auto}
+.screen.on{display:block}
+.px{background:var(--card);border:3px solid var(--bdr);box-shadow:4px 4px 0 #000;padding:14px;margin-bottom:12px}
+.title{font-family:'Press Start 2P',monospace;font-size:28px;color:var(--acc);text-align:center;
+  text-shadow:4px 4px 0 #000,0 0 24px rgba(255,204,0,.6);padding:36px 0 10px;line-height:1.5}
+.sub{font-size:18px;color:var(--mut);text-align:center;margin-bottom:30px}
+
+input[type=text]{background:var(--surf);border:3px solid var(--bdr);color:var(--txt);
+  font-family:'VT323',monospace;font-size:22px;padding:10px 14px;width:100%;outline:none;
+  box-shadow:inset 2px 2px 0 #000}
+input[type=text]:focus{border-color:var(--acc)}
+
+.btn{font-family:'Press Start 2P',monospace;font-size:10px;padding:11px 16px;border:3px solid;
+  cursor:pointer;background:transparent;transition:transform .1s,box-shadow .1s;
+  box-shadow:3px 3px 0 #000;letter-spacing:1px}
+.btn:active{transform:translate(2px,2px);box-shadow:1px 1px 0 #000}
+.btn:disabled{opacity:.3;cursor:not-allowed;pointer-events:none}
+.by{color:var(--acc);border-color:var(--acc)}.by:hover{background:rgba(255,204,0,.12)}
+.bg{color:var(--grn);border-color:var(--grn)}.bg:hover{background:rgba(68,255,136,.1)}
+.br{color:var(--red);border-color:var(--red)}.br:hover{background:rgba(255,68,102,.1)}
+.bb{color:var(--blu);border-color:var(--blu)}.bb:hover{background:rgba(68,170,255,.1)}
+.bp{color:var(--pur);border-color:var(--pur)}.bp:hover{background:rgba(204,68,255,.1)}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+label{display:block;color:var(--mut);font-size:15px;margin-bottom:5px}
+.sec{font-family:'Press Start 2P',monospace;font-size:9px;color:var(--mut);margin-bottom:10px}
+
+/* Starter */
+.sg{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin:14px 0}
+.sc{background:var(--card);border:3px solid var(--bdr);padding:14px;text-align:center;
+  cursor:pointer;transition:border-color .15s,transform .15s;box-shadow:4px 4px 0 #000;min-width:110px}
+.sc:hover{border-color:var(--acc);transform:translateY(-3px)}.sc.sel{border-color:var(--grn)}
+.sc .sn{font-family:'Press Start 2P',monospace;font-size:7px;color:var(--acc);margin-top:6px}
+.sc .st{font-size:14px;margin-top:3px}
+
+/* Sprites */
+.sp96{image-rendering:pixelated;width:96px;height:96px}
+/* LARGE sprites for battle — increased from 120px to 180px */
+.sp-battle{image-rendering:pixelated;width:180px;height:180px}
+
+/* HP/XP */
+.hpw{margin:5px 0}
+.hpl{font-size:13px;color:var(--mut);margin-bottom:2px}
+.hb{background:#000;border:2px solid var(--bdr);height:14px}
+.hf{height:100%;transition:width .35s;background:var(--grn)}
+.hf.y{background:var(--acc)}.hf.r{background:var(--red)}
+.xbb{background:#000;border:1px solid var(--bdr);height:7px;margin-top:3px}
+.xbf{height:100%;background:var(--blu);transition:width .35s}
+
+/* HUD */
+.hud{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;
+  gap:6px;padding:8px 14px;background:var(--surf);border-bottom:3px solid var(--bdr);
+  font-family:'Press Start 2P',monospace;font-size:8px;position:sticky;top:0;z-index:100}
+.hud-coins{color:var(--acc)}.hud-lv{color:var(--blu)}.hud-name{color:var(--grn)}.hud-room{color:var(--mut)}
+
+/* Tabs */
+.tabs{display:flex;border-bottom:3px solid var(--bdr);margin-bottom:12px}
+.tab{font-family:'Press Start 2P',monospace;font-size:8px;padding:9px 11px;cursor:pointer;
+  color:var(--mut);border:none;background:transparent;border-bottom:3px solid transparent;margin-bottom:-3px}
+.tab.on{color:var(--acc);border-bottom-color:var(--acc)}
+.tc{display:none}.tc.on{display:block}
+
+/* Room */
+.plist{display:flex;flex-direction:column;gap:7px;margin:10px 0}
+.prow{display:flex;align-items:center;gap:10px;padding:9px;background:var(--surf);border:2px solid var(--bdr)}
+.prow.you{border-color:var(--grn)}
+.prow img{width:40px;height:40px;image-rendering:pixelated}
+.prow .pn{font-family:'Press Start 2P',monospace;font-size:8px}
+.prow .pp{font-size:15px;color:var(--mut)}.hbadge{font-size:12px;color:var(--acc);margin-left:auto}
+.codebox{font-family:'Press Start 2P',monospace;font-size:22px;color:var(--acc);text-align:center;
+  padding:14px;background:var(--surf);border:3px solid var(--bdr);letter-spacing:5px;
+  box-shadow:4px 4px 0 #000;margin:8px 0}
+
+/* ═══ ARENA — bigger sprites ═══ */
+.arena{display:flex;justify-content:space-between;align-items:flex-end;
+  padding:20px 24px;
+  background:linear-gradient(180deg,#0d1f0d 0%,#05100a 100%);
+  border:3px solid var(--bdr);box-shadow:4px 4px 0 #000;
+  min-height:240px;position:relative}
+.bside{text-align:center;display:flex;flex-direction:column;align-items:center;gap:8px}
+.binfo{min-width:150px}
+.bname{font-family:'Press Start 2P',monospace;font-size:8px;color:var(--acc);margin-bottom:6px}
+
+/* Log */
+.log{background:var(--surf);border:3px solid var(--bdr);box-shadow:4px 4px 0 #000;
+  padding:10px;height:120px;overflow-y:auto;font-size:18px;line-height:1.5}
+.log p{margin:0}.log p.last{color:var(--acc)}
+
+/* Action panel */
+.atabs{display:flex;gap:0;border-bottom:2px solid var(--bdr);margin-bottom:8px;flex-wrap:wrap}
+.atab{font-family:'Press Start 2P',monospace;font-size:7px;padding:7px 9px;cursor:pointer;
+  color:var(--mut);border:none;background:transparent;border-bottom:3px solid transparent;margin-bottom:-2px}
+.atab.on{color:var(--acc);border-bottom-color:var(--acc)}
+.atc{display:none}.atc.on{display:block}
+
+/* Moves */
+.mgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px}
+.mv{font-family:'Press Start 2P',monospace;font-size:7px;padding:9px 7px;
+  border:2px solid var(--bdr);background:var(--surf);color:var(--txt);
+  cursor:pointer;text-align:left;transition:border-color .15s;line-height:1.5}
+.mv:hover{border-color:var(--acc)}.mv:disabled{opacity:.3;cursor:not-allowed;pointer-events:none}
+.mvpp{color:var(--mut);font-size:6px;display:block;margin-top:2px}
+
+/* Items / Switch */
+.igrid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px}
+.ibtn{font-family:'Press Start 2P',monospace;font-size:7px;padding:8px 6px;
+  border:2px solid var(--bdr);background:var(--surf);color:var(--txt);
+  cursor:pointer;text-align:left;transition:border-color .15s}
+.ibtn:hover{border-color:var(--grn)}.ibtn:disabled{opacity:.3;cursor:not-allowed;pointer-events:none}
+.sbtn{font-family:'Press Start 2P',monospace;font-size:7px;padding:8px 10px;
+  border:2px solid var(--bdr);background:var(--surf);color:var(--txt);
+  cursor:pointer;display:flex;align-items:center;gap:8px;transition:border-color .15s;width:100%}
+.sbtn:hover{border-color:var(--blu)}.sbtn:disabled{opacity:.3;cursor:not-allowed;pointer-events:none}
+.sbtn img{width:36px;height:36px;image-rendering:pixelated}
+.cballs{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.cb{font-family:'Press Start 2P',monospace;font-size:7px;padding:8px 11px;
+  border:2px solid var(--bdr);background:var(--surf);color:var(--txt);
+  cursor:pointer;transition:border-color .15s}
+.cb:hover{border-color:var(--acc)}.cb:disabled{opacity:.3;cursor:not-allowed;pointer-events:none}
+
+/* Team */
+.tgrid{display:flex;gap:8px;flex-wrap:wrap}
+.pkc{background:var(--surf);border:3px solid var(--bdr);padding:10px;text-align:center;
+  cursor:pointer;box-shadow:3px 3px 0 #000;flex:0 0 130px;transition:border-color .15s}
+.pkc:hover{border-color:var(--blu)}.pkc.act{border-color:var(--grn)}
+.pkc .kn{font-family:'Press Start 2P',monospace;font-size:7px;color:var(--acc);margin:5px 0 3px}
+.pkc .kl{font-size:15px;color:var(--mut)}
+
+/* Shop */
+.sgrid2{display:flex;flex-wrap:wrap;gap:8px}
+.si{background:var(--surf);border:3px solid var(--bdr);padding:12px;flex:0 0 168px;box-shadow:3px 3px 0 #000}
+.si .in{font-family:'Press Start 2P',monospace;font-size:7px;color:var(--acc);margin-bottom:5px}
+.si .ic{font-size:15px;color:var(--acc);margin-bottom:4px}
+.si .id{font-size:14px;color:var(--mut);margin-bottom:8px}
+
+/* PvP */
+.pvlist{display:flex;flex-direction:column;gap:7px}
+.pvrow{display:flex;align-items:center;gap:10px;padding:9px;background:var(--surf);border:2px solid var(--bdr)}
+.pvrow img{width:40px;height:40px;image-rendering:pixelated}
+.pvrow .pvn{font-family:'Press Start 2P',monospace;font-size:8px;flex:1}
+
+/* Modal */
+#pvpModal{position:fixed;inset:0;background:rgba(0,0,0,.9);display:none;align-items:center;justify-content:center;z-index:500}
+#pvpModal.on{display:flex}
+.mbox{background:var(--card);border:3px solid var(--pur);box-shadow:6px 6px 0 #000;padding:22px;max-width:520px;width:94%}
+.mtitle{font-family:'Press Start 2P',monospace;font-size:11px;color:var(--pur);margin-bottom:14px;text-align:center}
+
+/* Notifs */
+#chalNotif{position:fixed;bottom:76px;right:16px;z-index:600;display:none;
+  background:var(--card);border:3px solid var(--pur);box-shadow:4px 4px 0 #000;padding:12px}
+#notif{position:fixed;bottom:16px;right:16px;z-index:700;background:var(--card);
+  border:3px solid var(--acc);box-shadow:4px 4px 0 #000;padding:11px 16px;
+  font-family:'Press Start 2P',monospace;font-size:9px;color:var(--acc);max-width:300px;display:none}
+#errBanner{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:800;
+  background:var(--card);border:3px solid var(--red);box-shadow:6px 6px 0 #000;
+  padding:20px 28px;font-family:'Press Start 2P',monospace;font-size:10px;color:var(--red);
+  text-align:center;display:none;max-width:320px}
+
+.badge{display:inline-block;font-family:'Press Start 2P',monospace;font-size:6px;padding:3px 6px;border:2px solid}
+.bc{color:var(--mut);border-color:var(--mut)}.bu{color:var(--blu);border-color:var(--blu)}
+.bra{color:#ff6b35;border-color:#ff6b35}.be{color:var(--pur);border-color:var(--pur)}.bl{color:var(--acc);border-color:var(--acc)}
+.div{border:none;border-top:2px solid var(--bdr);margin:10px 0}
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:var(--surf)}::-webkit-scrollbar-thumb{background:var(--bdr)}
+</style>
+</head>
+<body>
+<div id="app">
+
+<!-- ════════ LOGIN ════════ -->
+<div id="loginScreen" class="screen on">
+  <div class="title">⚡ Pokélor</div>
+  <div class="sub">Multiplayer Pokémon Online</div>
+  <div class="px" style="max-width:460px;margin:0 auto">
+    <div class="sec">SEU NOME DE TRAINER</div>
+    <input id="pName" type="text" placeholder="Nome do trainer..." maxlength="16"/>
+    <div style="margin-top:18px" class="sec">ESCOLHA SEU STARTER</div>
+    <div class="sg" id="starterGrid"></div>
+    <div class="row" style="margin-top:14px">
+      <button class="btn by" onclick="doRegister()" style="flex:1">▶ COMEÇAR</button>
+    </div>
+    <hr class="div"/>
+    <button class="btn bb" onclick="doSolo()" style="width:100%;margin-top:4px">🎮 JOGAR SOLO</button>
+  </div>
+</div>
+
+<!-- ════════ LOBBY ════════ -->
+<div id="lobbyScreen" class="screen">
+  <div style="padding-top:18px">
+    <div class="sec" style="font-size:12px">🏠 LOBBY MULTIPLAYER</div>
+    <div class="px">
+      <div class="sec">Criar Sala</div>
+      <button class="btn by" onclick="createRoom()">➕ CRIAR SALA</button>
+      <hr class="div"/>
+      <div class="sec">Entrar em Sala</div>
+      <div class="row" style="align-items:flex-end">
+        <div style="flex:1"><label>Código (6 letras)</label>
+          <input id="joinCode" type="text" placeholder="XXXXXX" maxlength="6" style="text-transform:uppercase"/>
+        </div>
+        <button class="btn bb" onclick="joinRoom()">ENTRAR</button>
+      </div>
+    </div>
+    <div id="roomPanel" style="display:none">
+      <div class="px">
+        <div class="sec">CÓDIGO DA SALA</div>
+        <div class="codebox" id="codeDisplay">------</div>
+        <div class="sec" style="margin-top:10px">JOGADORES (<span id="pCount">0</span>/8)</div>
+        <div class="plist" id="pListEl"></div>
+        <div id="hostCtrl" style="display:none;margin-top:10px">
+          <button class="btn bg" onclick="startGame()" style="width:100%">▶▶ INICIAR JOGO</button>
+        </div>
+        <div id="waitMsg" style="display:none;text-align:center;color:var(--mut);margin-top:10px;font-size:16px">Aguardando o host...</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════ GAME ════════ -->
+<div id="gameScreen" class="screen">
+  <div class="hud">
+    <span class="hud-name" id="hudName">Trainer</span>
+    <span class="hud-lv" id="hudLv">Lv.1</span>
+    <span class="hud-coins" id="hudCoins">💰 0</span>
+    <span class="hud-room" id="hudRoom">Solo</span>
+  </div>
+  <div style="padding:12px">
+    <div class="tabs">
+      <button class="tab on" onclick="showTab('tWorld')">🌍 MUNDO</button>
+      <button class="tab" onclick="showTab('tTeam')">🎴 TIME</button>
+      <button class="tab" onclick="showTab('tShop')">🛒 LOJA</button>
+      <button class="tab" onclick="showTab('tPvP')">⚔️ PVP</button>
+    </div>
+
+    <!-- WORLD -->
+    <div id="tWorld" class="tc on">
+      <div id="worldView">
+        <div class="sec">🌿 ÁREA SELVAGEM</div>
+        <div class="px" style="text-align:center">
+          <p style="color:var(--mut);margin-bottom:14px;font-size:18px">A grama balança ao redor...</p>
+          <button class="btn bg" id="encBtn" onclick="requestWild()">🌿 PROCURAR POKÉMON</button>
+        </div>
+      </div>
+      <div id="battleView" style="display:none">
+        <!-- Arena -->
+        <div class="arena" id="arena">
+          <!-- MEU POKÉMON — ESQUERDA -->
+          <div class="bside" id="mySide">
+            <img id="mySprite" class="sp-battle" src="" alt="meu"/>
+            <div class="binfo">
+              <div class="bname" id="myBName">---</div>
+              <div class="hpw">
+                <div class="hpl" id="myHpLbl">HP ?/?</div>
+                <div class="hb"><div class="hf" id="myHpBar" style="width:100%"></div></div>
+              </div>
+              <div class="xbb"><div class="xbf" id="myXpBar" style="width:0%"></div></div>
+            </div>
+          </div>
+          <!-- POKÉMON SELVAGEM — DIREITA -->
+          <div class="bside" id="wildSide">
+            <img id="wildSprite" class="sp-battle" src="" alt="wild"/>
+            <div class="binfo">
+              <div class="bname" id="wildBName">???</div>
+              <div class="hpw">
+                <div class="hpl" id="wildHpLbl">HP ?/?</div>
+                <div class="hb"><div class="hf" id="wildHpBar" style="width:100%"></div></div>
+              </div>
+              <div id="wildBadge" style="margin-top:5px"></div>
+            </div>
+          </div>
+        </div>
+        <!-- Log -->
+        <div class="log" id="battleLog"></div>
+        <!-- Action panel -->
+        <div class="px" id="actionBox">
+          <div class="atabs">
+            <button class="atab on" id="atbAttack" onclick="showATab('atAttack')">⚔️ ATACAR</button>
+            <button class="atab" id="atbCapture" onclick="showATab('atCapture')">⚪ CAPTURAR</button>
+            <button class="atab" id="atbItems" onclick="showATab('atItems')">🎒 ITENS</button>
+            <button class="atab" id="atbSwitch" onclick="showATab('atSwitch')">🔄 TROCAR</button>
+            <button class="atab" id="atbFlee" onclick="doFlee()" style="color:var(--blu)">🏃 FUGIR</button>
+          </div>
+          <div class="atc on" id="atAttack"><div class="mgrid" id="movesGrid"></div></div>
+          <div class="atc" id="atCapture"><div class="cballs" id="ballsGrid"></div></div>
+          <div class="atc" id="atItems"><div class="igrid" id="itemsPanel"></div></div>
+          <div class="atc" id="atSwitch"><div id="switchPanel" style="display:flex;flex-direction:column;gap:6px;margin-top:6px"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TEAM -->
+    <div id="tTeam" class="tc">
+      <div class="sec">🎴 SEU TIME</div>
+      <div class="tgrid" id="teamGrid"></div>
+    </div>
+
+    <!-- SHOP -->
+    <div id="tShop" class="tc">
+      <div class="sec">🛒 LOJA DE ITENS</div>
+      <div style="margin-bottom:12px;font-size:18px;color:var(--mut)">Moedas: <span style="color:var(--acc)" id="shopCoins">0</span></div>
+      <div class="sgrid2" id="shopGrid"></div>
+    </div>
+
+    <!-- PVP -->
+    <div id="tPvP" class="tc">
+      <div class="sec">⚔️ BATALHAS PVP</div>
+      <p style="color:var(--mut);margin-bottom:12px;font-size:16px">Desafie jogadores na sua sala!</p>
+      <div class="pvlist" id="pvpList"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ PvP Modal ════ -->
+<div id="pvpModal">
+  <div class="mbox">
+    <div class="mtitle">⚔️ BATALHA PVP!</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:10px">
+      <div style="text-align:center;flex:1">
+        <img id="pvpMySp" class="sp96" src="" alt=""/>
+        <div id="pvpMyN" style="font-family:'Press Start 2P',monospace;font-size:7px;color:var(--grn);margin-top:5px"></div>
+        <div class="hpw" style="min-width:110px"><div class="hb"><div class="hf" id="pvpMyHp" style="width:100%"></div></div></div>
+      </div>
+      <div style="font-family:'Press Start 2P',monospace;font-size:14px;color:var(--pur)">VS</div>
+      <div style="text-align:center;flex:1">
+        <img id="pvpOppSp" class="sp96" src="" alt=""/>
+        <div id="pvpOppN" style="font-family:'Press Start 2P',monospace;font-size:7px;color:var(--red);margin-top:5px"></div>
+        <div class="hpw" style="min-width:110px"><div class="hb"><div class="hf" id="pvpOppHp" style="width:100%"></div></div></div>
+      </div>
+    </div>
+    <div class="log" id="pvpLog" style="height:70px;margin-bottom:10px"></div>
+    <div class="mgrid" id="pvpMoves" style="margin-bottom:10px"></div>
+    <button class="btn br" onclick="closePvp()" id="pvpClose" style="display:none;width:100%">FECHAR</button>
+  </div>
+</div>
+
+<!-- ════ Challenge ════ -->
+<div id="chalNotif">
+  <div style="font-family:'Press Start 2P',monospace;font-size:9px;color:var(--pur);margin-bottom:9px">
+    <span id="chalName">???</span> te desafia!
+  </div>
+  <div class="row">
+    <button class="btn bg" onclick="acceptChal()">ACEITAR</button>
+    <button class="btn br" onclick="declineChal()">RECUSAR</button>
+  </div>
+</div>
+
+<!-- ════ Error Banner ════ -->
+<div id="errBanner"></div>
+
+<!-- ════ Notif ════ -->
+<div id="notif"></div>
+
+</div><!-- #app -->
+<script>
+// ══════════════════════════════════════════
+// CONSTANTS & STATE
+// ══════════════════════════════════════════
+const TC={Fire:'#ff6b35',Water:'#44aaff',Grass:'#44ff88',Electric:'#ffcc00',
+  Psychic:'#ff44aa',Normal:'#aaaacc',Ghost:'#aa44cc',Dragon:'#6644ff',
+  Fighting:'#cc5500',Poison:'#aa44aa',Ground:'#ddbb55',Flying:'#88bbff',
+  Rock:'#bbaa66',Bug:'#88cc22',Ice:'#88ddff',Dark:'#775544',Steel:'#aaaacc',Fairy:'#ff88cc'};
+const RB={common:'bc',uncommon:'bu',rare:'bra',epic:'be',legendary:'bl'};
+const STARTERS=[{id:1,name:'Bulbasaur',type:'Grass'},{id:4,name:'Charmander',type:'Fire'},
+  {id:7,name:'Squirtle',type:'Water'},{id:25,name:'Pikachu',type:'Electric'}];
+
+let sock=null;
+let G={ player:null,room:null,isHost:false,roomPlayers:[],shopCatalog:[],
+  chalId:null,selectedStarter:1,
+  inBattle:false,currentWild:null,locked:false,
+  pvpMyPk:null,pvpOppPk:null };
+
+// ══════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════
+window.onload=function(){
+  buildStarters();
+  initSocket();
+};
+
+function buildStarters(){
+  document.getElementById('starterGrid').innerHTML=STARTERS.map(s=>`
+    <div class="sc ${s.id===G.selectedStarter?'sel':''}" id="sc_${s.id}" onclick="pickStarter(${s.id})">
+      <img src="${spu(s.id)}" class="sp96"/>
+      <div class="sn">${s.name}</div>
+      <div class="st" style="color:${TC[s.type]||'#aaa'}">${s.type}</div>
+    </div>`).join('');
+}
+
+function pickStarter(id){
+  G.selectedStarter=id;
+  document.querySelectorAll('.sc').forEach(c=>c.classList.remove('sel'));
+  document.getElementById('sc_'+id)?.classList.add('sel');
+}
+
+function spu(id){ return `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${id}.png`; }
+function spb(id){ return `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/back/${id}.png`; }
+
+// ══════════════════════════════════════════
+// SOCKET
+// ══════════════════════════════════════════
+function initSocket(){
+  sock=io({
+    reconnection:true,
+    reconnectionAttempts:Infinity,
+    reconnectionDelay:1500,
+    reconnectionDelayMax:5000,
+    timeout:20000,
+  });
+
+  sock.on('connect',()=>{
+    console.log('connected',sock.id);
+    if(G.player) sock.emit('getPlayerState');
+  });
+
+  sock.on('disconnect',(reason)=>{
+    console.log('disconnected',reason);
+    // If in battle, unlock so reconnect can continue
+    G.locked=false;
+  });
+
+  sock.on('registered',({player,shop})=>{
+    G.player=player; G.shopCatalog=shop||[];
+    showScreen('lobbyScreen'); renderShop();
+    notify(`Bem-vindo, ${player.name}!`);
+  });
+
+  sock.on('playerState',(p)=>{ G.player=p; updateHud(); renderTeam(); });
+
+  sock.on('roomCreated',({code})=>{
+    G.room=code; G.isHost=true;
+    document.getElementById('codeDisplay').textContent=code;
+    document.getElementById('roomPanel').style.display='block';
+    document.getElementById('hostCtrl').style.display='block';
+    document.getElementById('waitMsg').style.display='none';
+    notify(`Sala ${code} criada!`);
+  });
+
+  sock.on('joinedRoom',({code})=>{
+    G.room=code; G.isHost=false;
+    document.getElementById('codeDisplay').textContent=code;
+    document.getElementById('roomPanel').style.display='block';
+    document.getElementById('hostCtrl').style.display='none';
+    document.getElementById('waitMsg').style.display='block';
+    notify(`Entrou na sala ${code}!`);
+  });
+
+  sock.on('roomUpdate',(room)=>{ if(!room) return; updateRoomUI(room); });
+
+  sock.on('gameStarted',()=>{
+    showScreen('gameScreen'); updateHud(); renderTeam(); renderShop(); renderPvpList();
+    notify('🎮 Jogo iniciado!');
+  });
+
+  sock.on('err',(msg)=>{ notify('⚠ '+msg); });
+
+  // ── Battle ──────────────────────────────
+  sock.on('wildEncounter',({wild})=>{
+    G.currentWild=wild; G.inBattle=true; G.locked=false;
+    // Reset search button
+    const btn=document.getElementById('encBtn');
+    btn.disabled=false; btn.textContent='🌿 PROCURAR POKÉMON';
+    showBattleView(wild);
+  });
+
+  sock.on('battleResult',(res)=>{
+    G.locked=false;
+    if(res.messages) res.messages.forEach(m=>addLog(m));
+    if(res.player){ G.player=res.player; updateHud(); }
+    if(res.wild) G.currentWild=res.wild;
+
+    if(res.reset){
+      // Server says battle is invalid — reset cleanly
+      G.inBattle=false; G.currentWild=null; G.locked=false;
+      endBattle(); return;
+    }
+
+    if(res.victory||res.caught||res.defeat||res.fled){
+      G.inBattle=false; G.currentWild=null;
+      lockActions(true);
+      setTimeout(()=>endBattle(), res.defeat?1000:2000);
+    } else if(res.needSwitch){
+      G.currentWild=res.wild||G.currentWild;
+      updateBattleUI(G.currentWild);
+      showATab('atSwitch'); renderSwitch();
+      lockActions(false);
+    } else {
+      if(G.currentWild) updateBattleUI(G.currentWild);
+      lockActions(false);
+    }
+    renderTeam(); renderMoves(); renderItems(); renderBalls(); renderSwitch();
+  });
+
+  sock.on('battleErr',(msg)=>{
+    G.locked=false;
+    showErr(msg);
+    // Reset search button if stuck
+    const btn=document.getElementById('encBtn');
+    btn.disabled=false; btn.textContent='🌿 PROCURAR POKÉMON';
+    if(G.inBattle){ G.inBattle=false; G.currentWild=null; endBattle(); }
+  });
+
+  sock.on('shopResult',(res)=>{
+    if(res.error) return notify('⚠ '+res.error);
+    if(res.player){ G.player=res.player; updateHud(); renderTeam(); renderShop(); renderItems(); }
+    if(res.msg) notify(res.msg);
+  });
+
+  sock.on('pvpChallenge',({challengerId,challengerName})=>{
+    G.chalId=challengerId;
+    document.getElementById('chalName').textContent=challengerName;
+    document.getElementById('chalNotif').style.display='block';
+  });
+
+  sock.on('pvpStart',({opponent})=>{
+    G.inBattle=true; G.locked=false;
+    openPvpModal(opponent);
+  });
+
+  sock.on('pvpUpdate',({myPk,oppPk,message})=>{
+    addPvpLog(message);
+    if(myPk) setBar('pvpMyHp',(myPk.currentHp/myPk.maxHp)*100);
+    if(oppPk) setBar('pvpOppHp',(oppPk.currentHp/oppPk.maxHp)*100);
+    document.querySelectorAll('#pvpMoves .mv').forEach(b=>b.disabled=false);
+  });
+
+  sock.on('pvpResult',({won,messages,player})=>{
+    G.inBattle=false; G.locked=false;
+    if(player){ G.player=player; updateHud(); renderTeam(); }
+    messages.forEach(m=>addPvpLog(m));
+    document.querySelectorAll('#pvpMoves .mv').forEach(b=>b.disabled=true);
+    document.getElementById('pvpClose').style.display='block';
+  });
+}
+
+// ══════════════════════════════════════════
+// REGISTER / ROOM
+// ══════════════════════════════════════════
+function doRegister(){
+  const n=document.getElementById('pName').value.trim();
+  if(!n) return notify('Digite seu nome!');
+  sock.emit('register',{name:n,starterId:G.selectedStarter});
+}
+
+function doSolo(){
+  const n=document.getElementById('pName').value.trim();
+  if(!n) return notify('Digite seu nome!');
+  // Use once listeners to chain: register → createRoom → startGame
+  sock.emit('register',{name:n,starterId:G.selectedStarter});
+  sock.once('registered',()=>{
+    sock.emit('createRoom');
+    sock.once('roomCreated',()=>{ sock.emit('startGame'); });
+  });
+}
+
+function createRoom(){ if(!G.player) return notify('Registre-se primeiro!'); sock.emit('createRoom'); }
+function joinRoom(){
+  if(!G.player) return notify('Registre-se primeiro!');
+  const c=document.getElementById('joinCode').value.trim().toUpperCase();
+  if(!c||c.length<4) return notify('Código inválido!');
+  sock.emit('joinRoom',{code:c});
+}
+function startGame(){ sock.emit('startGame'); }
+
+function updateRoomUI(room){
+  G.roomPlayers=room.players||[];
+  document.getElementById('pCount').textContent=room.players.length;
+  document.getElementById('pListEl').innerHTML=room.players.map(p=>`
+    <div class="prow ${p.id===sock.id?'you':''}">
+      <img src="${spu(1)}" onerror="this.style.visibility='hidden'"/>
+      <div>
+        <div class="pn">${p.name}${p.id===sock.id?' (VOCÊ)':''}</div>
+        <div class="pp">🎴 ${p.pokemon}</div>
+      </div>
+      ${p.id===room.host?'<span class="hbadge">★ HOST</span>':''}
+    </div>`).join('');
+  renderPvpList();
+}
+
+// ══════════════════════════════════════════
+// WILD BATTLE
+// ══════════════════════════════════════════
+// Timeout guard: if server doesn't respond in 10s, reset
+let wildRequestTimer=null;
+
+function requestWild(){
+  if(G.locked||G.inBattle) return;
+  if(G.player){
+    const pk=G.player.pokemon[G.player.activePokemonIndex];
+    if(!pk||pk.currentHp<=0){ showErr('Pokémon ativo desmaiado! Cure ou troque no Time.'); return; }
+    if(!G.player.pokemon.some(x=>x.currentHp>0)){ showErr('Todos desmaiaram! Cure na loja.'); return; }
+  }
+  G.locked=true;
+  const btn=document.getElementById('encBtn');
+  btn.disabled=true; btn.textContent='...Procurando...';
+  sock.emit('requestWild');
+
+  // Timeout: if no response in 8s, reset button
+  clearTimeout(wildRequestTimer);
+  wildRequestTimer=setTimeout(()=>{
+    if(!G.inBattle){
+      G.locked=false;
+      btn.disabled=false; btn.textContent='🌿 PROCURAR POKÉMON';
+      notify('Sem resposta. Tente novamente!');
+    }
+  },8000);
+}
+
+function showBattleView(wild){
+  clearTimeout(wildRequestTimer);
+  document.getElementById('worldView').style.display='none';
+  document.getElementById('battleView').style.display='block';
+  document.getElementById('battleLog').innerHTML='';
+  updateBattleUI(wild);
+  addLog(`Um ${wild.name} selvagem (Nv.${wild.level}) apareceu!`);
+  renderMoves(); renderBalls(); renderItems(); renderSwitch();
+  showATab('atAttack'); lockActions(false);
+}
+
+function updateBattleUI(wild){
+  if(!G.player||!wild) return;
+  const pk=G.player.pokemon[G.player.activePokemonIndex];
+  // Player LEFT
+  if(pk){
+    document.getElementById('mySprite').src=spb(pk.id);
+    document.getElementById('myBName').textContent=`${pk.name} Nv.${pk.level}`;
+    document.getElementById('myHpLbl').textContent=`HP ${pk.currentHp}/${pk.maxHp}`;
+    setBar('myHpBar',(pk.currentHp/pk.maxHp)*100);
+    const xn=pk.level*pk.level*12;
+    document.getElementById('myXpBar').style.width=Math.min(100,(pk.xp/xn)*100)+'%';
+  }
+  // Wild RIGHT
+  document.getElementById('wildSprite').src=spu(wild.id);
+  document.getElementById('wildBName').textContent=`${wild.name} Nv.${wild.level}`;
+  document.getElementById('wildHpLbl').textContent=`HP ${wild.currentHp}/${wild.maxHp}`;
+  setBar('wildHpBar',(wild.currentHp/wild.maxHp)*100);
+  const rb=RB[wild.rarity]||'bc';
+  document.getElementById('wildBadge').innerHTML=`<span class="badge ${rb}">${wild.rarity||'common'}</span>`;
+}
+
+function setBar(id,pct){
+  const el=document.getElementById(id); if(!el) return;
+  el.style.width=Math.max(0,Math.min(100,pct))+'%';
+  el.classList.remove('y','r');
+  if(pct<25) el.classList.add('r'); else if(pct<50) el.classList.add('y');
+}
+
+function renderMoves(){
+  if(!G.player) return;
+  const pk=G.player.pokemon[G.player.activePokemonIndex];
+  const g=document.getElementById('movesGrid'); if(!g) return;
+  if(!pk){g.innerHTML='';return;}
+  g.innerHTML=pk.moves.map((m,i)=>{
+    const ok=m.pp>0&&!G.locked;
+    const c=TC[m.type]||'#aaa';
+    return `<button class="mv" ${!ok?'disabled':''} onclick="doMove(${i})" style="border-left:3px solid ${c}">
+      ${m.name}<br><span style="color:${c};font-size:6px">${m.type}</span>
+      <span class="mvpp">PP ${m.pp}/${m.maxPp}</span></button>`;
+  }).join('');
+}
+
+function renderBalls(){
+  if(!G.player) return;
+  const g=document.getElementById('ballsGrid'); if(!g) return;
+  const balls=[{k:'pokeball',n:'⚪ Poké Ball'},{k:'greatball',n:'🔵 Great Ball'},{k:'ultraball',n:'⚫ Ultra Ball'}];
+  g.innerHTML=balls.map(b=>{
+    const c=(G.player.items[b.k]||0);
+    return `<button class="cb" ${c<=0||G.locked?'disabled':''} onclick="doCapture('${b.k}')">${b.n} (${c})</button>`;
+  }).join('');
+}
+
+function renderItems(){
+  if(!G.player) return;
+  const g=document.getElementById('itemsPanel'); if(!g) return;
+  const its=[{k:'potion',n:'Potion +20HP'},{k:'superpotion',n:'Super +50HP'},
+    {k:'hyperpotion',n:'Hyper +100HP'},{k:'fullheal',n:'Full Heal'},
+    {k:'elixir',n:'Elixir (PP)'},{k:'xpboost',n:'XP Boost'}];
+  g.innerHTML=its.map(it=>{
+    const c=(G.player.items[it.k]||0);
+    return `<button class="ibtn" ${c<=0||G.locked?'disabled':''} onclick="doItem('${it.k}')">${it.n} (${c})</button>`;
+  }).join('');
+}
+
+function renderSwitch(){
+  if(!G.player) return;
+  const g=document.getElementById('switchPanel'); if(!g) return;
+  g.innerHTML=G.player.pokemon.map((pk,i)=>{
+    const isA=i===G.player.activePokemonIndex, dead=pk.currentHp<=0;
+    return `<button class="sbtn" ${isA||dead||G.locked?'disabled':''} onclick="doSwitch(${i})">
+      <img src="${spu(pk.id)}" width="36" height="36"/>
+      <span>${pk.name} Nv.${pk.level} — ${pk.currentHp}/${pk.maxHp} HP${isA?' ★':dead?' ✕':''}</span>
+    </button>`;
+  }).join('');
+}
+
+function lockActions(locked){
+  G.locked=locked;
+  renderMoves(); renderBalls(); renderItems(); renderSwitch();
+}
+
+function doMove(i){ if(G.locked) return; lockActions(true); sock.emit('battleAction',{action:'attack',mi:i}); }
+function doCapture(bk){ if(G.locked) return; lockActions(true); sock.emit('battleAction',{action:'capture',item:bk}); }
+function doItem(ik){ if(G.locked) return; lockActions(true); sock.emit('battleAction',{action:'useItem',item:ik}); }
+function doSwitch(i){ if(G.locked) return; lockActions(true); sock.emit('battleAction',{action:'switch',item:i}); }
+function doFlee(){ if(G.locked) return; lockActions(true); sock.emit('battleAction',{action:'flee'}); }
+
+function endBattle(){
+  G.inBattle=false; G.currentWild=null; G.locked=false;
+  document.getElementById('worldView').style.display='block';
+  document.getElementById('battleView').style.display='none';
+  document.getElementById('battleLog').innerHTML='';
+  const btn=document.getElementById('encBtn');
+  btn.disabled=false; btn.textContent='🌿 PROCURAR POKÉMON';
+  renderTeam();
+}
+
+function addLog(msg){
+  const log=document.getElementById('battleLog');
+  log.querySelectorAll('p.last').forEach(p=>p.classList.remove('last'));
+  const p=document.createElement('p'); p.textContent='▶ '+msg; p.className='last';
+  log.appendChild(p); log.scrollTop=log.scrollHeight;
+}
+
+// ══════════════════════════════════════════
+// TEAM
+// ══════════════════════════════════════════
+function renderTeam(){
+  if(!G.player) return;
+  const g=document.getElementById('teamGrid'); if(!g) return;
+  g.innerHTML=G.player.pokemon.map((pk,i)=>{
+    const hp=(pk.currentHp/pk.maxHp)*100, xn=pk.level*pk.level*12, xp=Math.min(100,(pk.xp/xn)*100);
+    const isA=i===G.player.activePokemonIndex;
+    return `<div class="pkc ${isA?'act':''}" onclick="setActive(${i})">
+      <img src="${spu(pk.id)}" class="sp96"/>
+      <div class="kn">${pk.name}</div>
+      <div class="kl">Nv.${pk.level}</div>
+      <div class="hpw"><div class="hpl">${pk.currentHp}/${pk.maxHp}</div>
+        <div class="hb"><div class="hf ${hp<25?'r':hp<50?'y':''}" style="width:${hp}%"></div></div>
+      </div>
+      <div class="xbb"><div class="xbf" style="width:${xp}%"></div></div>
+      ${isA?'<div style="font-family:\'Press Start 2P\',monospace;font-size:6px;color:var(--grn);margin-top:5px">★ ATIVO</div>':''}
+      ${pk.currentHp<=0?'<div style="font-family:\'Press Start 2P\',monospace;font-size:6px;color:var(--red);margin-top:5px">✕ DESMAIADO</div>':''}
+    </div>`;
+  }).join('');
+}
+
+function setActive(i){
+  if(!G.player||G.inBattle) return;
+  const pk=G.player.pokemon[i];
+  if(!pk||pk.currentHp<=0){ showErr('Pokémon desmaiado! Não pode ser ativado.'); return; }
+  G.player.activePokemonIndex=i;
+  renderTeam(); updateHud();
+}
+
+// ══════════════════════════════════════════
+// SHOP
+// ══════════════════════════════════════════
+function renderShop(){
+  const g=document.getElementById('shopGrid'); if(!g) return;
+  const cat=G.shopCatalog.length>0?G.shopCatalog:[
+    {id:'pokeball',name:'Poké Ball',cost:50,desc:'Captura básica'},
+    {id:'greatball',name:'Great Ball',cost:150,desc:'1.5x captura'},
+    {id:'ultraball',name:'Ultra Ball',cost:300,desc:'2x captura'},
+    {id:'potion',name:'Potion',cost:80,desc:'+20 HP'},
+    {id:'superpotion',name:'Super Potion',cost:200,desc:'+50 HP'},
+    {id:'hyperpotion',name:'Hyper Potion',cost:400,desc:'+100 HP'},
+    {id:'fullheal',name:'Full Heal',cost:700,desc:'Cura TOTAL'},
+    {id:'xpboost',name:'XP Boost',cost:200,desc:'+200 XP'},
+    {id:'elixir',name:'Elixir',cost:350,desc:'Restaura PP (TM)'},
+  ];
+  g.innerHTML=cat.map(it=>`
+    <div class="si">
+      <div class="in">${it.name}</div>
+      <div class="ic">💰 ${it.cost}</div>
+      <div class="id">${it.desc}</div>
+      <button class="btn by" onclick="buyItem('${it.id}')" style="font-size:8px;padding:8px 12px">COMPRAR</button>
+    </div>`).join('');
+  if(G.player) document.getElementById('shopCoins').textContent=G.player.coins;
+}
+
+function buyItem(id){ sock.emit('buyItem',{itemId:id}); }
+
+// ══════════════════════════════════════════
+// HUD
+// ══════════════════════════════════════════
+function updateHud(){
+  if(!G.player) return;
+  const pk=G.player.pokemon[G.player.activePokemonIndex];
+  document.getElementById('hudName').textContent=G.player.name;
+  document.getElementById('hudLv').textContent=pk?`Nv.${pk.level} ${pk.name}`:'';
+  document.getElementById('hudCoins').textContent=`💰 ${G.player.coins}`;
+  document.getElementById('hudRoom').textContent=G.room?`Sala: ${G.room}`:'Solo';
+  document.getElementById('shopCoins').textContent=G.player.coins;
+}
+
+// ══════════════════════════════════════════
+// PVP
+// ══════════════════════════════════════════
+function renderPvpList(){
+  const list=document.getElementById('pvpList'); if(!list) return;
+  const others=G.roomPlayers.filter(p=>p.id!==sock.id);
+  if(!others.length){ list.innerHTML='<p style="color:var(--mut)">Nenhum outro jogador na sala.</p>'; return; }
+  list.innerHTML=others.map(p=>`
+    <div class="pvrow">
+      <img src="${spu(1)}" onerror="this.style.visibility='hidden'"/>
+      <span class="pvn">${p.name}</span>
+      <button class="btn bp" onclick="challengePlayer('${p.id}')" style="font-size:7px;padding:7px 10px">⚔ DESAFIAR</button>
+    </div>`).join('');
+}
+
+function challengePlayer(id){ sock.emit('challengePlayer',{targetId:id}); notify('Desafio enviado!'); }
+function acceptChal(){ document.getElementById('chalNotif').style.display='none'; sock.emit('acceptPvp',{challengerId:G.chalId}); }
+function declineChal(){ document.getElementById('chalNotif').style.display='none'; G.chalId=null; }
+
+function openPvpModal(opponent){
+  if(!G.player) return;
+  G.pvpMyPk=G.player.pokemon[G.player.activePokemonIndex];
+  G.pvpOppPk=opponent.pokemon;
+  document.getElementById('pvpMySp').src=spu(G.pvpMyPk.id);
+  document.getElementById('pvpMyN').textContent=G.pvpMyPk.name;
+  document.getElementById('pvpOppSp').src=spu(G.pvpOppPk.id);
+  document.getElementById('pvpOppN').textContent=opponent.name+': '+G.pvpOppPk.name;
+  setBar('pvpMyHp',100); setBar('pvpOppHp',100);
+  document.getElementById('pvpLog').innerHTML='';
+  document.getElementById('pvpClose').style.display='none';
+  renderPvpMoves();
+  document.getElementById('pvpModal').classList.add('on');
+  addPvpLog(`Batalha vs ${opponent.name}! GO!`);
+}
+
+function renderPvpMoves(){
+  const g=document.getElementById('pvpMoves'); if(!g||!G.pvpMyPk) return;
+  g.innerHTML=G.pvpMyPk.moves.map((m,i)=>{
+    const c=TC[m.type]||'#aaa';
+    return `<button class="mv" onclick="pvpAtk(${i})" style="border-left:3px solid ${c}">
+      ${m.name}<br><span style="color:${c};font-size:6px">${m.type}</span>
+      <span class="mvpp">PP ${m.pp}/${m.maxPp}</span></button>`;
+  }).join('');
+}
+
+function pvpAtk(mi){
+  document.querySelectorAll('#pvpMoves .mv').forEach(b=>b.disabled=true);
+  sock.emit('pvpAction',{mi});
+}
+
+function addPvpLog(msg){
+  const log=document.getElementById('pvpLog');
+  log.querySelectorAll('p.last').forEach(p=>p.classList.remove('last'));
+  const p=document.createElement('p'); p.textContent='▶ '+msg; p.className='last';
+  log.appendChild(p); log.scrollTop=log.scrollHeight;
+}
+
+function closePvp(){ document.getElementById('pvpModal').classList.remove('on'); G.inBattle=false; }
+
+// ══════════════════════════════════════════
+// UI HELPERS
+// ══════════════════════════════════════════
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));
+  document.getElementById(id).classList.add('on');
+}
+
+function showTab(id){
+  document.querySelectorAll('.tc').forEach(t=>t.classList.remove('on'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+  document.getElementById(id).classList.add('on');
+  const idx=['tWorld','tTeam','tShop','tPvP'].indexOf(id);
+  document.querySelectorAll('.tab')[idx]?.classList.add('on');
+  if(id==='tTeam') renderTeam();
+  if(id==='tPvP') renderPvpList();
+  if(id==='tShop') renderShop();
+}
+
+function showATab(id){
+  document.querySelectorAll('.atc').forEach(t=>t.classList.remove('on'));
+  document.querySelectorAll('.atab').forEach(t=>t.classList.remove('on'));
+  document.getElementById(id)?.classList.add('on');
+  const map={atAttack:0,atCapture:1,atItems:2,atSwitch:3};
+  if(map[id]!==undefined) document.querySelectorAll('.atab')[map[id]]?.classList.add('on');
+}
+
+let ntT; function notify(msg){ const n=document.getElementById('notif'); n.textContent=msg; n.style.display='block'; clearTimeout(ntT); ntT=setTimeout(()=>n.style.display='none',3200); }
+let ebT; function showErr(msg){ const b=document.getElementById('errBanner'); b.innerHTML=`⚠<br><span style="font-size:8px;color:var(--txt);font-family:\'Press Start 2P\',monospace">${msg}</span>`; b.style.display='block'; clearTimeout(ebT); ebT=setTimeout(()=>b.style.display='none',3500); }
+</script>
+</body>
+</html>
